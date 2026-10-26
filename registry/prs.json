@@ -11,7 +11,9 @@
       "title": "Safe unit budgets reservations and cost ledger",
       "origin": "original",
       "prs": [],
-      "contributingPrs": [],
+      "contributingPrs": [
+        1
+      ],
       "dependsOn": [],
       "externalDependencies": [],
       "externalPrerequisites": [],
@@ -26,7 +28,9 @@
       "title": "Uncertain charges settlement release and overage handling",
       "origin": "original",
       "prs": [],
-      "contributingPrs": [],
+      "contributingPrs": [
+        1
+      ],
       "dependsOn": [
         "RCO-001"
       ],
@@ -43,7 +47,9 @@
       "title": "Project and contributor cost allocation",
       "origin": "original",
       "prs": [],
-      "contributingPrs": [],
+      "contributingPrs": [
+        1
+      ],
       "dependsOn": [
         "RCO-002"
       ],
@@ -77,7 +83,9 @@
       "title": "Durable storage and visual operational controls",
       "origin": "original",
       "prs": [],
-      "contributingPrs": [],
+      "contributingPrs": [
+        2
+      ],
       "dependsOn": [
         "RCO-003"
       ],
@@ -87,7 +95,7 @@
         "Durable storage and visual operational controls"
       ],
       "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
-      "implementationStatus": "planned"
+      "implementationStatus": "durable_store_local_tests_passed_visual_controls_pending"
     },
     {
       "id": "RCO-006",
