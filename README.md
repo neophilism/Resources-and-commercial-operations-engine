@@ -1,3 +1,10 @@
 # Resources and Commercial Operations Engine
 
-Reusable budgets, reservations, cost attribution and contributor/commercial operations. Deployment-specific accounts, research and policies stay outside the engine. Initial implementation is delivered through tested pull requests; live acceptance is separate.
+Reusable country-neutral engine. Initial capabilities and limits are documented in [architecture](docs/ARCHITECTURE.md); the canonical work plan is [registry/prs.json](registry/prs.json).
+
+```sh
+npm ci
+npm run check
+```
+
+All research and jurisdiction configuration belong in downstream deployments. Implementation, local tests, CI, merge and live acceptance are separate.

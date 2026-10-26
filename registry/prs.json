@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "repository": "neophilism/Resources-and-commercial-operations-engine",
+  "roadmapVersion": 1,
+  "planVerified": true,
+  "plannedPrCount": 6,
+  "observedAt": "2026-10-26T18:50:00Z",
+  "units": [
+    {
+      "id": "RCO-001",
+      "title": "Safe unit budgets reservations and cost ledger",
+      "origin": "original",
+      "prs": [],
+      "contributingPrs": [],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": [
+        "Safe unit budgets reservations and cost ledger"
+      ],
+      "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
+      "implementationStatus": "planned"
+    },
+    {
+      "id": "RCO-002",
+      "title": "Uncertain charges settlement release and overage handling",
+      "origin": "original",
+      "prs": [],
+      "contributingPrs": [],
+      "dependsOn": [
+        "RCO-001"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": [
+        "Uncertain charges settlement release and overage handling"
+      ],
+      "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
+      "implementationStatus": "planned"
+    },
+    {
+      "id": "RCO-003",
+      "title": "Project and contributor cost allocation",
+      "origin": "original",
+      "prs": [],
+      "contributingPrs": [],
+      "dependsOn": [
+        "RCO-002"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": [
+        "Project and contributor cost allocation"
+      ],
+      "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
+      "implementationStatus": "planned"
+    },
+    {
+      "id": "RCO-004",
+      "title": "Licensing products obligations and accounting adapters",
+      "origin": "original",
+      "prs": [],
+      "contributingPrs": [],
+      "dependsOn": [
+        "RCO-003"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": [
+        "Licensing products obligations and accounting adapters"
+      ],
+      "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
+      "implementationStatus": "planned"
+    },
+    {
+      "id": "RCO-005",
+      "title": "Durable storage and visual operational controls",
+      "origin": "original",
+      "prs": [],
+      "contributingPrs": [],
+      "dependsOn": [
+        "RCO-003"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": [
+        "Durable storage and visual operational controls"
+      ],
+      "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
+      "implementationStatus": "planned"
+    },
+    {
+      "id": "RCO-006",
+      "title": "Commercial reuse and deployment acceptance",
+      "origin": "original",
+      "prs": [],
+      "contributingPrs": [],
+      "dependsOn": [
+        "RCO-004",
+        "RCO-005"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": [
+        "Commercial reuse and deployment acceptance"
+      ],
+      "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
+      "implementationStatus": "planned"
+    }
+  ],
+  "pullRequests": []
+}
