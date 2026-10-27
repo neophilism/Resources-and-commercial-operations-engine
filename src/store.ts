@@ -109,6 +109,48 @@ export class BudgetStore {
       "Budget operator is not authorized",
     );
   }
+  #commandAuthority(
+    c: Context,
+    state: BudgetState,
+    input: BudgetCommand,
+  ): void {
+    if (input.type === "reserve") {
+      const existing = state.reservations.find((r) => r.id === input.input.id);
+      invariant(
+        !existing ||
+          (existing.owner.id === c.actor.id &&
+            existing.owner.kind === c.actor.kind),
+        "reservation_denied",
+        "Reservation belongs to another principal",
+      );
+      invariant(
+        input.input.purpose === c.purpose,
+        "purpose_denied",
+        "Reservation purpose differs from authenticated purpose",
+      );
+    }
+    if (input.type === "overage")
+      invariant(
+        c.actor.kind === "human" && c.actor.roles.includes("owner"),
+        "owner_required",
+        "A human owner reconciles unexpected charges",
+      );
+    if ("reservationId" in input) {
+      const r = state.reservations.find((r) => r.id === input.reservationId);
+      invariant(r, "not_found", "Reservation not found");
+      invariant(
+        c.purpose === r.purpose,
+        "purpose_denied",
+        "Effect purpose differs from reservation",
+      );
+      invariant(
+        (r.owner.id === c.actor.id && r.owner.kind === c.actor.kind) ||
+          (c.actor.kind === "human" && c.actor.roles.includes("owner")),
+        "reservation_denied",
+        "Reservation belongs to another operator",
+      );
+    }
+  }
   async #verifyReceipt(check: ReceiptCheck): Promise<boolean> {
     const controller = new AbortController();
     const timeoutMs = this.#policy.receiptTimeoutMs ?? 5000;
@@ -203,8 +245,16 @@ export class BudgetStore {
     const c = structuredClone(context),
       input = structuredClone(command);
     this.#scope(c);
-    return scoped(this.#db, c, (tx) =>
-      tx.idempotent(
+    return scoped(this.#db, c, async (tx) => {
+      // Serialize authorization with budget changes before the SDK can return a
+      // cached acknowledgement. Keep the original fingerprint for durable replay.
+      await tx.audit(
+        "budget.command.checked",
+        json({ budgetId, type: input.type }),
+      );
+      const current = await this.#get(tx, c, budgetId);
+      this.#commandAuthority(c, current.state, input);
+      return tx.idempotent(
         commandId,
         json({ budgetId, expectedRevision, command: input }),
         async () => {
@@ -320,8 +370,8 @@ export class BudgetStore {
           );
           return json({ revision: row.revision, state: next });
         },
-      ),
-    ) as Promise<unknown> as Promise<BudgetSnapshot>;
+      );
+    }) as Promise<unknown> as Promise<BudgetSnapshot>;
   }
   /** Consume once before any external attempt. Lost acknowledgements require reconciliation. */
   async consumeEffect(
