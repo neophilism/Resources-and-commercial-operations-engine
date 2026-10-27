@@ -25,5 +25,12 @@
     "regressions": "Three authority groups fail on previous accepted source",
     "fullLocalInstalledAndCi": "21 ordinary local groups/typecheck/build/registry and fifteen installed public-export groups pass; final-head CI required",
     "fullLocalSuitePassed": 21
+  },
+  "postgresBudgets": {
+    "groups": 4,
+    "localExecution": "not_performed_no_PostgreSQL_or_Docker",
+    "fixtureAdmission": "four invalid-target cases pass locally",
+    "currentHeadCi": "required_before_merge",
+    "productionAcceptance": "not_performed"
   }
 }

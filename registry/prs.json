@@ -4,7 +4,7 @@
   "roadmapVersion": 1,
   "planVerified": true,
   "plannedPrCount": 6,
-  "observedAt": "2026-10-27T15:29:10Z",
+  "observedAt": "2026-10-27T15:51:59Z",
   "units": [
     {
       "id": "RCO-001",
@@ -100,7 +100,7 @@
         "Durable storage and visual operational controls"
       ],
       "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
-      "implementationStatus": "Partial: merged PR2 provides engine-owned durable budget commands, immutable revisions, audit/outbox, bounded receipt callbacks and one-shot consumption. PR3 adds monotonic callback admission/result gates and signal cleanup. PR4 checks stored current budget membership, full reservation principal/purpose and required overage role under the project lock before cached responses, preserving legacy fingerprints. Twenty-one local tests/typecheck/build/registry and fifteen installed public-export migration groups pass; final-head CI is required. Host identity/receipt services, authenticated controls, independent network-session and deployment qualification remain pending."
+      "implementationStatus": "Partial: merged PR2 provides engine-owned durable budget commands, immutable revisions, audit/outbox, bounded receipt callbacks and one-shot consumption. PR3 adds monotonic callback admission/result gates and signal cleanup. PR4 checks stored current budget membership, full reservation principal/purpose and required overage role under the project lock before cached responses, preserving legacy fingerprints. Twenty-one local tests/typecheck/build/registry and fifteen installed public-export migration groups pass; final-head CI is required. Host identity/receipt services, authenticated controls, independent network-session and deployment qualification remain pending. Current WIP adds disposable PostgreSQL17 separate-session reservation/consumption/lost-acknowledgement and observed-lock authorization verification; actual CI qualification remains pending."
     },
     {
       "id": "RCO-006",
