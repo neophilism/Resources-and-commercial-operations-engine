@@ -1,6 +1,6 @@
 {
   "stage": "local",
-  "testsPassed": 21,
+  "testsPassed": 22,
   "newRestrictedMigrationGroups": 3,
   "database": "Actual canonical SDK migration and restricted PGlite LOGIN",
   "installedPackage": "All fifteen store groups executed through installed compiled public exports",
@@ -25,5 +25,15 @@
     "regressions": "Three authority groups fail on previous accepted source",
     "fullLocalInstalledAndCi": "21 ordinary local groups/typecheck/build/registry and fifteen installed public-export groups pass; final-head CI required",
     "fullLocalSuitePassed": 21
+  },
+  "postgresBudgets": {
+    "groups": 4,
+    "localExecution": "not_performed_no_PostgreSQL_or_Docker",
+    "fixtureAdmission": "four invalid-target cases pass locally",
+    "currentHeadCi": "required_before_merge",
+    "productionAcceptance": "not_performed",
+    "initialCiRun": 40535308201,
+    "initialCiSource": "a12404160a56827a103e34a251e1bb78ba516326",
+    "initialCiJob": 122298835533
   }
 }
