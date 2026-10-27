@@ -1,0 +1,21 @@
+{
+  "stage": "local",
+  "testsPassed": 17,
+  "newRestrictedMigrationGroups": 3,
+  "database": "Actual canonical SDK migration and restricted PGlite LOGIN",
+  "installedPackage": "All eleven store groups executed through installed compiled public exports",
+  "sourceHashes": {
+    "src/contracts.ts": "d86141cb7546a723f837a298e4ea6fef62692918f78f5aab2d72d6639987fcc5",
+    "src/index.ts": "f281647af8a088513afc8d6f22e1bdb3010e12a629db6c248331cc2136074c68",
+    "src/store.ts": "ccee21ab1ef1a15202c7c4d916150aa89277cede488c7cde4d08eb4c0ae633d2"
+  },
+  "regression": "New blocked-event-loop receipt test fails on prior source and passes with monotonic result gate",
+  "independentHumanAudit": "not_performed_owner_allows_ai_review",
+  "finalHeadCi": "required_before_merge",
+  "liveNetworkProviderDeploymentAcceptance": "not_performed",
+  "limits": [
+    "Callback deadline cannot preempt blocked JavaScript or undo callback side effects.",
+    "Database transactions already begun can outlive callback deadline.",
+    "Synthetic receipt ports are not qualified live provider verification; no payments or provider requests made."
+  ]
+}

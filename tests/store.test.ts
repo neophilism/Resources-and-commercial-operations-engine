@@ -6,6 +6,7 @@ import { scoped, verifyAudit } from "@accountability/evidence/database";
 import type { Database } from "@accountability/evidence/database";
 import { BudgetStore } from "../src/store.ts";
 import type { ReceiptVerifier } from "../src/store.ts";
+import { DomainError } from "../src/contracts.ts";
 import { budgetBalance } from "../src/index.ts";
 import type { Context } from "../src/contracts.ts";
 const owner: Context = {
@@ -402,4 +403,146 @@ test("receipt timeouts and provider failures remain bounded, private and rollbac
     },
   );
   assert.equal((await store.load(agent, "budget")).revision, ready.revision);
+});
+
+test("a receipt callback that blocks the event loop beyond its deadline cannot commit a late true result", async (t) => {
+  const { store, db } = await setup(t);
+  const ready = await committed(store);
+  const blocked = new BudgetStore(
+    db,
+    {
+      tenantId: owner.tenantId,
+      projectId: owner.projectId,
+      managerIds: ["owner"],
+      receiptTimeoutMs: 10,
+    },
+    {
+      verify: async () => {
+        // The timeout timer cannot run during this wait. A monotonic result gate is required.
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 30);
+        return true;
+      },
+    },
+  );
+  await assert.rejects(
+    blocked.execute(
+      agent,
+      "budget",
+      ready.revision,
+      {
+        type: "settle",
+        reservationId: "reservation",
+        actualUnits: 40,
+        receipt,
+      },
+      "blocked-result",
+    ),
+    { code: "receipt_timeout" },
+  );
+  assert.equal((await store.load(agent, "budget")).revision, ready.revision);
+});
+
+test("late asynchronous receipt resolution cannot resume a timed-out settlement or free reserved units", async (t) => {
+  const { store, db } = await setup(t),
+    ready = await committed(store);
+  let finish!: (v: boolean) => void, seen: AbortSignal | undefined;
+  const late = new BudgetStore(
+    db,
+    {
+      tenantId: owner.tenantId,
+      projectId: owner.projectId,
+      managerIds: ["owner"],
+      receiptTimeoutMs: 10,
+    },
+    {
+      verify: async (_check, signal) => {
+        seen = signal;
+        return new Promise((r) => {
+          finish = r;
+        });
+      },
+    },
+  );
+  await assert.rejects(
+    late.execute(
+      agent,
+      "budget",
+      ready.revision,
+      {
+        type: "settle",
+        reservationId: "reservation",
+        actualUnits: 40,
+        receipt,
+      },
+      "late-result",
+    ),
+    { code: "receipt_timeout" },
+  );
+  assert.equal(seen?.aborted, true);
+  finish(true);
+  await new Promise((r) => setImmediate(r));
+  const current = await store.load(agent, "budget");
+  assert.equal(current.revision, ready.revision);
+  assert.equal(current.state.reservations[0]!.status, "committed");
+  assert.equal(budgetBalance(current.state).reserved, 60);
+  assert.equal(budgetBalance(current.state).spent, 0);
+  await scoped(db, owner, async (tx) =>
+    assert.ok(verifyAudit(await tx.audits())),
+  );
+});
+
+test("receipt verification stays strict, sanitizes callback DomainErrors and closes signals on all exits", async (t) => {
+  const { store, db } = await setup(t),
+    ready = await committed(store);
+  const seen: AbortSignal[] = [];
+  for (const mode of ["nonboolean", "exception", "success"]) {
+    const port = new BudgetStore(
+      db,
+      {
+        tenantId: owner.tenantId,
+        projectId: owner.projectId,
+        managerIds: ["owner"],
+      },
+      {
+        verify: async (_check, signal) => {
+          seen.push(signal);
+          if (mode === "exception")
+            throw new DomainError(
+              "receipt_timeout",
+              "private fixture credential diagnostic",
+            );
+          return mode === "nonboolean" ? ("true" as unknown as boolean) : true;
+        },
+      },
+    );
+    const operation = port.execute(
+      agent,
+      "budget",
+      ready.revision,
+      {
+        type: "settle",
+        reservationId: "reservation",
+        actualUnits: 40,
+        receipt,
+      },
+      mode,
+    );
+    if (mode === "success")
+      assert.equal(budgetBalance((await operation).state).spent, 40);
+    else
+      await assert.rejects(operation, (e) => {
+        assert.equal(
+          (e as { code: string }).code,
+          mode === "exception" ? "receipt_unavailable" : "receipt_denied",
+        );
+        assert.equal(String(e).includes("private fixture"), false);
+        return true;
+      });
+    assert.equal(seen.at(-1)?.aborted, true);
+  }
+  assert.equal(seen.length, 3);
+  assert.equal(
+    (await store.load(agent, "budget")).revision,
+    ready.revision + 1,
+  );
 });
