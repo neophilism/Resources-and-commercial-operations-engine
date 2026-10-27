@@ -4,7 +4,7 @@
   "roadmapVersion": 1,
   "planVerified": true,
   "plannedPrCount": 6,
-  "observedAt": "2026-10-27T15:13:59Z",
+  "observedAt": "2026-10-27T15:17:47Z",
   "units": [
     {
       "id": "RCO-001",
@@ -12,7 +12,8 @@
       "origin": "original",
       "prs": [],
       "contributingPrs": [
-        1
+        1,
+        2
       ],
       "dependsOn": [],
       "externalDependencies": [],
@@ -21,7 +22,7 @@
         "Safe unit budgets reservations and cost ledger"
       ],
       "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
-      "implementationStatus": "planned"
+      "implementationStatus": "Partial: PR1 implements explicit safe integer units, scoped reservations and cost-chain domain transitions; merged PR2 persists budget revisions/audit/outbox on an engine-owned database. Qualified provider/services and deployment acceptance remain separate."
     },
     {
       "id": "RCO-002",
@@ -29,7 +30,9 @@
       "origin": "original",
       "prs": [],
       "contributingPrs": [
-        1
+        1,
+        2,
+        3
       ],
       "dependsOn": [
         "RCO-001"
@@ -40,7 +43,7 @@
         "Uncertain charges settlement release and overage handling"
       ],
       "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
-      "implementationStatus": "planned"
+      "implementationStatus": "Partial: PR1 preserves committed/uncertain reservations and explicit verified charge/no-charge/overage domain transitions; merged PR2 adds mandatory bounded receipt ports and one-shot durable consumption. PR3 fences late callback results with monotonic time and sanitized failures. Live receipt/liveness and provider qualification remain pending."
     },
     {
       "id": "RCO-003",
@@ -59,7 +62,7 @@
         "Project and contributor cost allocation"
       ],
       "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
-      "implementationStatus": "planned"
+      "implementationStatus": "Partial: PR1 supplies exact balanced project cost allocation; durable contributor allocation/accounting integration and deployment acceptance remain pending."
     },
     {
       "id": "RCO-004",
@@ -84,7 +87,8 @@
       "origin": "original",
       "prs": [],
       "contributingPrs": [
-        2
+        2,
+        3
       ],
       "dependsOn": [
         "RCO-003"
@@ -95,7 +99,7 @@
         "Durable storage and visual operational controls"
       ],
       "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
-      "implementationStatus": "durable_store_local_tests_passed_visual_controls_pending; Current WIP rejects receipt callback results beyond a monotonic deadline, including an event-loop-blocking regression. Full local regression, installed package and final-head CI remain pending."
+      "implementationStatus": "Partial: merged PR2 provides engine-owned durable budget commands, immutable revisions, audit/outbox, bounded receipt callbacks and one-shot consumption. PR3 adds monotonic callback admission/result gates and signal cleanup. Seventeen local tests/typecheck/build/registry and eleven installed public-export migration groups pass; final-head CI is required. Authenticated operator controls, independent network-session/real-provider and deployment qualification remain pending."
     },
     {
       "id": "RCO-006",
