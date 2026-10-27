@@ -403,3 +403,40 @@ test("receipt timeouts and provider failures remain bounded, private and rollbac
   );
   assert.equal((await store.load(agent, "budget")).revision, ready.revision);
 });
+
+test("a receipt callback that blocks the event loop beyond its deadline cannot commit a late true result", async (t) => {
+  const { store, db } = await setup(t);
+  const ready = await committed(store);
+  const blocked = new BudgetStore(
+    db,
+    {
+      tenantId: owner.tenantId,
+      projectId: owner.projectId,
+      managerIds: ["owner"],
+      receiptTimeoutMs: 10,
+    },
+    {
+      verify: async () => {
+        // The timeout timer cannot run during this wait. A monotonic result gate is required.
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 30);
+        return true;
+      },
+    },
+  );
+  await assert.rejects(
+    blocked.execute(
+      agent,
+      "budget",
+      ready.revision,
+      {
+        type: "settle",
+        reservationId: "reservation",
+        actualUnits: 40,
+        receipt,
+      },
+      "blocked-result",
+    ),
+    { code: "receipt_timeout" },
+  );
+  assert.equal((await store.load(agent, "budget")).revision, ready.revision);
+});

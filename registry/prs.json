@@ -4,7 +4,7 @@
   "roadmapVersion": 1,
   "planVerified": true,
   "plannedPrCount": 6,
-  "observedAt": "2026-10-26T18:50:00Z",
+  "observedAt": "2026-10-27T15:13:59Z",
   "units": [
     {
       "id": "RCO-001",
@@ -95,7 +95,7 @@
         "Durable storage and visual operational controls"
       ],
       "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
-      "implementationStatus": "durable_store_local_tests_passed_visual_controls_pending"
+      "implementationStatus": "durable_store_local_tests_passed_visual_controls_pending; Current WIP rejects receipt callback results beyond a monotonic deadline, including an event-loop-blocking regression. Full local regression, installed package and final-head CI remain pending."
     },
     {
       "id": "RCO-006",

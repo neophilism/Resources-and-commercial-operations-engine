@@ -112,18 +112,39 @@ export class BudgetStore {
   async #verifyReceipt(check: ReceiptCheck): Promise<boolean> {
     const controller = new AbortController();
     const timeoutMs = this.#policy.receiptTimeoutMs ?? 5000;
+    const deadline = performance.now() + timeoutMs;
+    const withinDeadline = () => {
+      if (controller.signal.aborted || performance.now() >= deadline) {
+        controller.abort();
+        throw new DomainError(
+          "receipt_timeout",
+          "Receipt verification timed out",
+        );
+      }
+    };
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       return await Promise.race([
-        Promise.resolve()
-          .then(() => this.#verify(structuredClone(check), controller.signal))
-          .then((value) => value === true)
-          .catch(() => {
+        Promise.resolve().then(async () => {
+          withinDeadline();
+          let value: boolean;
+          try {
+            value = await this.#verify(
+              structuredClone(check),
+              controller.signal,
+            );
+          } catch {
+            withinDeadline();
             throw new DomainError(
               "receipt_unavailable",
               "Receipt verifier could not complete",
             );
-          }),
+          }
+          // A blocked event loop can postpone the timer beyond callback resolution.
+          // Elapsed time and cancellation must still fence the result before SQL mutation.
+          withinDeadline();
+          return value === true;
+        }),
         new Promise<boolean>((_, reject) => {
           timer = setTimeout(() => {
             controller.abort();
@@ -138,6 +159,7 @@ export class BudgetStore {
       ]);
     } finally {
       if (timer) clearTimeout(timer);
+      controller.abort();
     }
   }
   async #get(tx: UnitOfWork, c: Context, id: string): Promise<BudgetSnapshot> {
