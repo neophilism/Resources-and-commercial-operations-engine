@@ -6,8 +6,8 @@ import { scoped, verifyAudit } from "@accountability/evidence/database";
 import type { Database } from "@accountability/evidence/database";
 import { BudgetStore } from "../src/store.ts";
 import type { ReceiptVerifier } from "../src/store.ts";
-import { DomainError } from "../src/contracts.ts";
-import { budgetBalance } from "../src/index.ts";
+import { DomainError, canonical, digest } from "../src/contracts.ts";
+import { budgetBalance, reserve } from "../src/index.ts";
 import type { Context } from "../src/contracts.ts";
 const owner: Context = {
   tenantId: "alpha",
@@ -544,5 +544,155 @@ test("receipt verification stays strict, sanitizes callback DomainErrors and clo
   assert.equal(
     (await store.load(agent, "budget")).revision,
     ready.revision + 1,
+  );
+});
+
+test("budget command replay cannot return another principal kind's cached result", async (t) => {
+  const { store } = await setup(t),
+    command = { type: "reserve" as const, input: reservation };
+  const prior = await store.execute(agent, "budget", 1, command, "reserve");
+  await assert.rejects(
+    store.execute(
+      { ...agent, actor: { ...agent.actor, kind: "human" } },
+      "budget",
+      1,
+      command,
+      "reserve",
+    ),
+    { code: "operator_denied" },
+  );
+  assert.deepEqual(
+    await store.execute(agent, "budget", 1, command, "reserve"),
+    prior,
+  );
+  await store.create(
+    owner,
+    {
+      ...budget,
+      id: "dual",
+      operators: [...budget.operators, { id: "worker", kind: "service" }],
+    },
+    "create-dual",
+  );
+  await store.execute(agent, "dual", 1, command, "dual-reserve");
+  // Even when both kinds are legitimate budget readers, the reservation belongs
+  // to the original exact principal, not merely an SDK actor_id string.
+  await assert.rejects(
+    store.execute(
+      { ...agent, actor: { ...agent.actor, kind: "service" } },
+      "dual",
+      1,
+      command,
+      "dual-reserve",
+    ),
+    { code: "reservation_denied" },
+  );
+});
+
+test("budget command replay and new effect reconciliation retain the reservation's purpose boundary", async (t) => {
+  const { store } = await setup(t),
+    ready = await committed(store);
+  const wrong = { ...agent, purpose: "different-purpose" };
+  await assert.rejects(
+    store.execute(
+      wrong,
+      "budget",
+      2,
+      { type: "commit", reservationId: "reservation" },
+      "commit",
+    ),
+    { code: "purpose_denied" },
+  );
+  await assert.rejects(
+    store.execute(
+      wrong,
+      "budget",
+      ready.revision,
+      {
+        type: "settle",
+        reservationId: "reservation",
+        actualUnits: 40,
+        receipt,
+      },
+      "foreign-settle",
+    ),
+    { code: "purpose_denied" },
+  );
+  assert.equal((await store.load(agent, "budget")).revision, ready.revision);
+});
+
+test("budget command replay rechecks current owner role before returning an overage acknowledgement", async (t) => {
+  const { store } = await setup(t),
+    ready = await committed(store);
+  const command = {
+    type: "overage" as const,
+    reservationId: "reservation",
+    actualUnits: 120,
+    receipt,
+    reason: "fixture excess",
+  };
+  const prior = await store.execute(
+    owner,
+    "budget",
+    ready.revision,
+    command,
+    "overage",
+  );
+  await assert.rejects(
+    store.execute(
+      { ...owner, actor: { ...owner.actor, roles: [] } },
+      "budget",
+      ready.revision,
+      command,
+      "overage",
+    ),
+    { code: "owner_required" },
+  );
+  assert.deepEqual(
+    await store.execute(owner, "budget", ready.revision, command, "overage"),
+    prior,
+  );
+});
+
+test("budget command replay preserves legacy fingerprints and historical acknowledgements after later revisions", async (t) => {
+  const { store, db, snapshot } = await setup(t),
+    command = { type: "reserve" as const, input: reservation };
+  // Seed the prior public command fingerprint using the actual pinned SDK, not the new guard.
+  const prior = await scoped(db, agent, (tx) =>
+    tx.idempotent(
+      "legacy-reserve",
+      JSON.parse(
+        canonical({ budgetId: "budget", expectedRevision: 1, command }),
+      ),
+      async () => {
+        const state = reserve(snapshot.state, agent, reservation);
+        const row = await tx.put(
+          "budget",
+          digest({ kind: "budget", id: "budget" }),
+          1,
+          state,
+        );
+        return JSON.parse(canonical({ revision: row.revision, state }));
+      },
+    ),
+  );
+  assert.deepEqual(
+    await store.execute(agent, "budget", 1, command, "legacy-reserve"),
+    prior,
+  );
+  await store.execute(
+    agent,
+    "budget",
+    2,
+    { type: "commit", reservationId: "reservation" },
+    "later-commit",
+  );
+  assert.deepEqual(
+    await store.execute(agent, "budget", 1, command, "legacy-reserve"),
+    prior,
+  );
+  assert.equal((await store.load(agent, "budget")).revision, 3);
+  await scoped(db, owner, async (tx) =>
+    assert.ok(verifyAudit(await tx.audits())),
   );
 });
