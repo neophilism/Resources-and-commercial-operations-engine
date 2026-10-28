@@ -4,7 +4,7 @@
   "roadmapVersion": 1,
   "planVerified": true,
   "plannedPrCount": 6,
-  "observedAt": "2026-10-28T18:02:17Z",
+  "observedAt": "2026-10-28T18:49:32Z",
   "units": [
     {
       "id": "RCO-001",
@@ -81,7 +81,7 @@
         "Licensing products obligations and accounting adapters"
       ],
       "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
-      "implementationStatus": "planned"
+      "implementationStatus": "Incomplete private accounting statement: one current authorized own-DB SQL observation binds original charge, exact observed budget/allocation/latest-correction editions and effective balanced cells. Three new restricted-migration groups/typecheck pass; expanded/installed/CI/review pending. No licensing/products/obligations/export/payment/authenticated host or deployed acceptance. See ALLOCATION_STATEMENT.md."
     },
     {
       "id": "RCO-005",

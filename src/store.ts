@@ -125,6 +125,15 @@ export type AllocationCorrectionSnapshot = Readonly<{
   revision: number;
   value: AllocationCorrection;
 }>;
+export type AllocationStatement = Scope &
+  Readonly<{
+    schemaVersion: 1;
+    source: AllocationSource;
+    observedBudget: Ref;
+    allocation: Ref;
+    correction: Ref | null;
+    lines: readonly AllocationLine[];
+  }>;
 const CORRECTION = "cost-allocation-correction";
 const MAX_CORRECTIONS = 64;
 const correctionId = (id: string) =>
@@ -1020,6 +1029,69 @@ export class BudgetStore {
             original,
           )
         : null;
+    });
+  }
+  /** One private SQL observation, not an external accounting attestation or action permit. */
+  async loadAllocationStatement(
+    context: Context,
+    budgetId: string,
+    reservationId: string,
+  ): Promise<AllocationStatement> {
+    const c = structuredClone(context);
+    this.#manager(c);
+    nonempty(budgetId, "Budget", 128);
+    nonempty(reservationId, "Reservation", 128);
+    return scoped(this.#db, c, async (tx) => {
+      // Acquire the owning project lock before any source/allocation/correction read.
+      await tx.audit("cost.statement.read.checked", {
+        budgetId,
+        reservationId,
+      });
+      const original = await this.#originalAllocation(
+          tx,
+          c,
+          budgetId,
+          reservationId,
+        ),
+        current = await this.#get(tx, c, budgetId),
+        id = correctionId(original.id),
+        stored = await tx.get<AllocationCorrection>(CORRECTION, id);
+      const correction = stored
+        ? await this.#checkCorrection(
+            tx,
+            c,
+            { id, revision: stored.revision, value: stored.value },
+            original,
+          )
+        : null;
+      // Never persist this statement, return a cached command, or infer a new event/actor/time.
+      return structuredClone({
+        schemaVersion: 1 as const,
+        tenantId: c.tenantId,
+        projectId: c.projectId,
+        source: original.value.source,
+        observedBudget: this.#allocationRef(
+          c,
+          "budget",
+          idKey(budgetId),
+          current.revision,
+        ),
+        allocation: this.#allocationRef(
+          c,
+          ALLOCATION,
+          original.id,
+          original.revision,
+        ),
+        correction: correction
+          ? this.#allocationRef(
+              c,
+              CORRECTION,
+              correction.id,
+              correction.revision,
+            )
+          : null,
+        lines: correction?.value.lines ?? original.value.lines,
+      });
     });
   }
   /** Consume once before any external attempt. Lost acknowledgements require reconciliation. */
