@@ -17,3 +17,5 @@ Explicit private corrections append up to64 immutable original/predecessor-bound
 These are private bookkeeping interfaces, not independent receipt/contributor entitlement/accounting qualification, payments, exports or external Identity/action fences. Trusted host current authentication/configuration/database limits and production TLS/failover/throughput/crash/deployment services remain required.
 
 Private accounting statements now join original charge and current effective allocation cells in one locked owning SQL observation, with exact original/latest correction/observed budget references and no new bookkeeping effect. Initial test evidence and remaining qualification: ALLOCATION_STATEMENT.md.
+
+Statement qualification checkpoint: five new restricted-migration groups and all47 ordinary local tests/typecheck/build/registry/strict integration compile pass; installed compiled public exports pass with matching store JS. Initial source CI40748816709 passed45 ordinary and seven EXISTING PostgreSQL17 regressions, not a new statement network scenario. Current-head CI and deployed accounting/authentication remain separate.

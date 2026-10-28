@@ -163,7 +163,8 @@ test("statement acquires actual project FOR UPDATE before any source reads and r
       tenantId: owner.tenantId,
       projectId: owner.projectId,
       allocation: {
-        ...owner,
+        tenantId: owner.tenantId,
+        projectId: owner.projectId,
         kind: "cost-allocation",
         id: f.original.id,
         revision: 1,
@@ -178,5 +179,116 @@ test("statement acquires actual project FOR UPDATE before any source reads and r
   await assert.rejects(
     store.loadAllocationStatement(owner, "budget", "reservation"),
     { code: "invalid_correction" },
+  );
+});
+
+test("statement distinguishes original charge edition from later observed budget and emits no accounting effect", async (t) => {
+  const f = await allocated(t);
+  const later = await f.store.execute(
+    owner,
+    "budget",
+    f.settled.revision,
+    {
+      type: "reserve",
+      input: {
+        id: "later",
+        units: 1,
+        purpose: owner.purpose,
+        expiresAt: "2026-01-01T00:01:00Z",
+        effectKey: "later",
+      },
+    },
+    "later",
+  );
+  const statement = await f.store.loadAllocationStatement(
+    owner,
+    "budget",
+    "reservation",
+  );
+  assert.equal(statement.source.budget.revision, f.settled.revision);
+  assert.equal(statement.observedBudget.revision, later.revision);
+  assert.equal(statement.observedBudget.id, statement.source.budget.id);
+  assert.equal(statement.projectId, owner.projectId);
+  assert.equal(statement.tenantId, owner.tenantId);
+  assert.deepEqual(
+    Object.keys(statement).sort(),
+    [
+      "schemaVersion",
+      "tenantId",
+      "projectId",
+      "source",
+      "observedBudget",
+      "allocation",
+      "correction",
+      "lines",
+    ].sort(),
+  );
+  await scoped(f.db, owner, async (tx) => {
+    assert.equal((await tx.list("allocation-statement")).length, 0);
+    assert.equal(
+      (await tx.audits()).filter(
+        (a) => a.type === "cost.statement.read.checked",
+      ).length,
+      1,
+    );
+  });
+  const topics = await f.db.transaction(async (q) => {
+    await q.query("SET LOCAL ROLE evidence_runtime");
+    await q.query(
+      "SELECT set_config('evidence.tenant_id',$1,true),set_config('evidence.project_id',$2,true)",
+      [owner.tenantId, owner.projectId],
+    );
+    return (
+      await q.query<{ topic: string }>(
+        "SELECT topic FROM public.evidence_outbox",
+      )
+    ).rows.map((r) => r.topic);
+  });
+  assert.equal(
+    topics.some((x) => x.includes("statement")),
+    false,
+  );
+  assert.deepEqual(await f.store.load(owner, "budget"), later);
+});
+test("statement captures caller/configuration before awaits but never caches stored operator authority", async (t) => {
+  const f = await allocated(t),
+    c = structuredClone(owner),
+    policy = {
+      tenantId: owner.tenantId,
+      projectId: owner.projectId,
+      managerIds: ["owner"],
+    };
+  let release!: () => void, enter!: () => void;
+  const gate = new Promise<void>((r) => (release = r)),
+    entered = new Promise<void>((r) => (enter = r));
+  const db = {
+    ...f.db,
+    transaction: async <T>(fn: Parameters<typeof f.db.transaction<T>>[0]) => {
+      enter();
+      await gate;
+      return f.db.transaction(fn);
+    },
+  };
+  const store = new BudgetStore(db, policy, verifier),
+    pending = store.loadAllocationStatement(c, "budget", "reservation");
+  await entered;
+  policy.managerIds.length = 0;
+  (c.actor as unknown as { roles: string[] }).roles = [];
+  release();
+  assert.deepEqual((await pending).lines, f.original.value.lines);
+  await scoped(f.db, owner, (tx) =>
+    tx.put(
+      "budget",
+      digest({ kind: "budget", id: "budget" }),
+      f.settled.revision,
+      {
+        ...f.settled.state,
+        operators: [{ id: owner.actor.id, kind: "service" }, agent.actor],
+      },
+    ),
+  );
+  await assert.rejects(
+    store.loadAllocationStatement(owner, "budget", "reservation"),
+    { code: "operator_denied" },
   );
 });
