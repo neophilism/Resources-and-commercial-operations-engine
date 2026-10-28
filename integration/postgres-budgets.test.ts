@@ -550,3 +550,178 @@ test(
     // These selected-scope SQL settings are trusted-host inputs, not end-user authentication.
   },
 );
+
+test(
+  "PostgreSQL correction contenders observe the winning transaction, preserve history and replay a lost COMMIT acknowledgement from a fresh pool",
+  { timeout: 20000 },
+  async (t) => {
+    const f = await fixture(t, "network-correction");
+    await f.committed();
+    const receipt = {
+      tenantId: f.owner.tenantId,
+      projectId: f.owner.projectId,
+      kind: "fixture-charge",
+      id: "one",
+      revision: 1,
+    };
+    const settled = await f.sa.execute(
+      f.worker,
+      "budget",
+      3,
+      { type: "settle", reservationId: "one", actualUnits: 45, receipt },
+      "settle",
+    );
+    const original = await f.sa.allocate(
+      f.owner,
+      {
+        budgetId: "budget",
+        reservationId: "one",
+        expectedBudgetRevision: settled.revision,
+        lines: [{ projectId: "label-a", contributorId: "label-a", units: 45 }],
+      },
+      "allocate",
+    );
+    const input = {
+      budgetId: "budget",
+      reservationId: "one",
+      expectedCorrectionRevision: 0,
+      lines: [{ projectId: "label-b", contributorId: "label-b", units: 45 }],
+      reason: "Fictional accounting label correction",
+    };
+    const entered = gate(),
+      release = gate();
+    let lost = false;
+    const db: Database = {
+      ...f.a,
+      transaction: async (fn) => {
+        const result = await f.a.transaction(async (q) => {
+          const value = await fn(q);
+          entered.resolve();
+          await release.promise;
+          return value;
+        });
+        if (!lost) {
+          lost = true;
+          throw Error("fixture lost correction COMMIT acknowledgement");
+        }
+        return result;
+      },
+    };
+    const first = new BudgetStore(db, f.policy, f.verifier).correctAllocation(
+      f.owner,
+      input,
+      "first",
+    );
+    const firstResult = first.then(
+      (value) => ({ value }),
+      (error) => ({ error }),
+    );
+    let second: ReturnType<BudgetStore["correctAllocation"]> | undefined;
+    try {
+      await Promise.race([
+        entered.promise,
+        first.then(() => {
+          throw Error("Winning transaction did not hold");
+        }),
+      ]);
+      second = f.sb.correctAllocation(
+        f.owner,
+        {
+          ...input,
+          lines: [
+            { projectId: "label-c", contributorId: "label-c", units: 45 },
+          ],
+        },
+        "second",
+      );
+      const secondResult = second.then(
+        (value) => ({ value }),
+        (error) => ({ error }),
+      );
+      let blocked = false;
+      const until = Date.now() + 3000;
+      while (Date.now() < until) {
+        const status = await admin.transaction((q) =>
+          q.query<{ blocked: boolean }>(
+            "SELECT EXISTS(SELECT FROM pg_stat_activity WHERE application_name=$1 AND wait_event_type='Lock' AND cardinality(pg_blocking_pids(pid))>0) AS blocked",
+            ["network-correction-b"],
+          ),
+        );
+        if (status.rows[0]!.blocked) {
+          blocked = true;
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      assert.equal(
+        blocked,
+        true,
+        "Actual correction lock wait must precede the winning COMMIT",
+      );
+      release.resolve();
+      const unknown = await firstResult;
+      assert.ok("error" in unknown);
+      assert.match(unknown.error.message, /lost correction COMMIT/);
+      assert.equal(lost, true);
+      const denied = await secondResult;
+      assert.ok("error" in denied);
+      assert.equal(denied.error.code, "revision_conflict");
+      const fresh = new BudgetStore(
+        f.connect("fresh-correction"),
+        f.policy,
+        f.verifier,
+      );
+      const replay = await fresh.correctAllocation(f.owner, input, "first");
+      assert.equal(replay.revision, 1);
+      assert.deepEqual(
+        await fresh.loadAllocationCorrection(f.owner, "budget", "one"),
+        replay,
+      );
+      const later = await fresh.correctAllocation(
+        f.owner,
+        {
+          ...input,
+          expectedCorrectionRevision: 1,
+          lines: original.value.lines,
+        },
+        "later",
+      );
+      assert.equal(later.revision, 2);
+      assert.equal(later.value.previous!.revision, 1);
+      assert.deepEqual(
+        await fresh.correctAllocation(f.owner, input, "first"),
+        replay,
+      );
+      assert.deepEqual(
+        await fresh.loadAllocationCorrection(f.owner, "budget", "one", 1),
+        replay,
+      );
+      assert.deepEqual(
+        await fresh.loadAllocation(f.owner, "budget", "one"),
+        original,
+      );
+      assert.deepEqual(await fresh.load(f.owner, "budget"), settled);
+      await scoped(f.b, f.owner, async (tx) => {
+        assert.equal((await tx.list("cost-allocation-correction")).length, 1);
+        assert.equal(
+          (await tx.audits()).filter(
+            (a) => a.type === "cost.allocation.corrected",
+          ).length,
+          2,
+        );
+        assert.ok(verifyAudit(await tx.audits()));
+      });
+      const count = await admin.transaction((q) =>
+        q.query<{ count: number }>(
+          "SELECT count(*)::int AS count FROM public.evidence_outbox WHERE tenant_id=$1 AND project_id=$2 AND topic='cost.allocation.corrected'",
+          [f.owner.tenantId, f.owner.projectId],
+        ),
+      );
+      assert.equal(count.rows[0]!.count, 2);
+    } finally {
+      release.resolve();
+      await first.catch(() => {});
+      await second?.catch(() => {});
+    }
+  },
+);
