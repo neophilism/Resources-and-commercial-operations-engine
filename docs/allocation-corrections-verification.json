@@ -1,0 +1,33 @@
+{
+  "localTests": 42,
+  "newRestrictedMigrationGroups": 10,
+  "installedCompiledPublicExportGroups": 10,
+  "installedCompiledJS": "byte-matched build",
+  "strictPostgresCompile": "passed locally and in CI",
+  "expandedCi": {
+    "source": "6027cbbe4f4bc11678e8fcfdd61f38d8df18f23c",
+    "run": 40740920672,
+    "check": 123001970855,
+    "postgres": 123001972912,
+    "ordinary": 42,
+    "postgresGroups": 7,
+    "newNetworkGroups": 1,
+    "logsInspected": true
+  },
+  "review": "Read source, adversarial tests, package exports and actual SQL lock ordering; no unresolved source finding. Final-head CI/normal expected-head merge still required.",
+  "scope": "Private balanced bookkeeping correction lineage only; original/all prior editions and budget capacity/charges remain unchanged",
+  "remaining": [
+    "Final-head all-job CI and expected-head merge",
+    "Trusted host current identity/roles/purpose/configuration/clock and driver/SQL/concurrency limits",
+    "Private authenticated controls and accounting interfaces",
+    "Qualified external receipt/contributor entitlement/identity/accounting services",
+    "Production TLS/failover/throughput/crash/multinode/deployment acceptance"
+  ],
+  "sourceSha256": {
+    "src/store.ts": "a7a19772edf3c4a9ef6aabce80756cfe8df640829400f214c2311dee0cb5e3e4",
+    "tests/allocation-corrections.test.ts": "d66cf14894eb2b6ab926643abcfd3aafc75236acdb65f5165f5197d0910c26b6",
+    "tests/allocation-fixture.ts": "4af26a3c57c4f2b9282983f922b2ba1672e8258386aea102e4d8b1343b31531b",
+    "integration/postgres-budgets.test.ts": "4cdc313f960d25e0c5f49af9c226e3b03a6e23f05c09193e2f0755768fb73cd9",
+    "src/contracts.ts": "d86141cb7546a723f837a298e4ea6fef62692918f78f5aab2d72d6639987fcc5"
+  }
+}
