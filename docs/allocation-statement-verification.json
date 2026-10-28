@@ -1,0 +1,30 @@
+{
+  "ordinaryLocal": 47,
+  "newRestrictedMigrationGroups": 5,
+  "installedCompiledPublicExportGroups": 5,
+  "compiledStore": "byte-matched build",
+  "initialCi": {
+    "source": "d224fcfa0bcd08d234895833f970df3055244789",
+    "run": 40748816709,
+    "check": 123029664966,
+    "postgres": 123029664388,
+    "ordinary": 45,
+    "existingPostgresGroups": 7,
+    "logsInspected": true
+  },
+  "newNetworkScenario": false,
+  "review": "Source/adversarial review completed; source locking and validators reused directly; exact predecessor fixture tightened. Final-head CI/merge still required.",
+  "remaining": [
+    "Final-head checks/expected-head merge",
+    "Host current identity roles purpose configuration clock and SQL/session limits",
+    "Licensing/products/obligations/accounting export and provider qualification",
+    "Authenticated controls/current Identity gateway",
+    "Production TLS/failover/throughput/crash/multinode/live acceptance"
+  ],
+  "sourceSha256": {
+    "src/store.ts": "b774c9da717b59fe18e5e047f42fc5af4b750f11ff9dabba0ee384d134ffd7e9",
+    "tests/allocation-statement.test.ts": "b8dc6d81bb7d6af919cd3e2e286af2b4b22dae7e31d695fd5371e353c9561761",
+    "tests/allocation-fixture.ts": "4af26a3c57c4f2b9282983f922b2ba1672e8258386aea102e4d8b1343b31531b",
+    "src/contracts.ts": "d86141cb7546a723f837a298e4ea6fef62692918f78f5aab2d72d6639987fcc5"
+  }
+}

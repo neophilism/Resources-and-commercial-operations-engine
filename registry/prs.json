@@ -4,7 +4,7 @@
   "roadmapVersion": 1,
   "planVerified": true,
   "plannedPrCount": 6,
-  "observedAt": "2026-10-28T18:02:17Z",
+  "observedAt": "2026-10-28T18:52:34Z",
   "units": [
     {
       "id": "RCO-001",
@@ -71,7 +71,9 @@
       "title": "Licensing products obligations and accounting adapters",
       "origin": "original",
       "prs": [],
-      "contributingPrs": [],
+      "contributingPrs": [
+        10
+      ],
       "dependsOn": [
         "RCO-003"
       ],
@@ -81,7 +83,7 @@
         "Licensing products obligations and accounting adapters"
       ],
       "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
-      "implementationStatus": "planned"
+      "implementationStatus": "Partial PR10 private accounting statement: one authorized project-locked own-DB observation binds original charge, observed current budget/original allocation/latest correction editions and effective balanced cells. Five new restricted-migration groups and all47 local tests/typecheck/build/registry/strict integration compile pass; all five installed compiled public-export groups pass/store JS byte-match. Initial sourced224fcfa0bcd08d234895833f970df3055244789 CI40748816709 passed45 ordinary and seven EXISTING PostgreSQL17 regressions, logs inspected. No new network-session qualification or accounting effect. Final-head CI/expected-head merge required. Licensing/products/obligations/accounting export/provider qualification/authenticated host/current Identity/driver/TLS/failover/throughput/crash/live remain pending; no payment/send/publication."
     },
     {
       "id": "RCO-005",
@@ -95,7 +97,8 @@
         5,
         7,
         8,
-        9
+        9,
+        10
       ],
       "dependsOn": [
         "RCO-003"
@@ -106,7 +109,7 @@
         "Durable storage and visual operational controls"
       ],
       "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
-      "implementationStatus": "Partial: accepted PR7 records one immutable balanced project/contributor allocation per settled charge, exact original/current budget editions/receipt/cost-chain binding, current listed host human manager and stored operator/purpose/source checks before cached acknowledgement. PR7 final CI40716190256 passed32 ordinary and five actual PostgreSQL17 groups. PR8 final CI40721523227 passed32 ordinary and six actual PostgreSQL17 groups including authenticated database-role/RLS boundaries, logs inspected. Accepted PR2 persists own-DB budgets/audit/outbox and one-shot consumption; PR3 bounds receipt verification; PR4 authorizes cached commands under lock; PR5 verifies actual network-session races/lost acknowledgements. PR9 candidate adds explicit balanced allocation corrections with exact immutable original/predecessor editions,64-edition fail-closed cap, current authority/source checks before cache and atomic own-DB history/audit/outbox without changing budget capacity or charges. All42 local tests/typecheck/build/registry and strict PostgreSQL integration compile pass; ten new actual restricted-migration correction groups. Initial source34d66eb66d762feacdca12279fdfcf3c270c0d7d CI40740255082 passed35 ordinary and six existing PostgreSQL17 regressions, logs inspected. All ten correction groups also pass installed compiled public exports with store JS byte-match. Expanded source6027cbbe4f4bc11678e8fcfdd61f38d8df18f23c CI40740920672 check123001970855/postgres123001972912 confirms42 ordinary and SEVEN actual PostgreSQL17 groups including new observed public correction contention/lost winning COMMIT acknowledgement/fresh-pool historical replay; logs inspected. Final-head CI/expected-head merge remains required after evidence update. Production identity/receipt/contributor entitlement/accounting/private controls/driver/TLS/failover/throughput/crash/live qualification remain pending. No payment/export/effect authority/deletion or new authenticated route."
+      "implementationStatus": "Partial: accepted PR7 records one immutable balanced project/contributor allocation per settled charge, exact original/current budget editions/receipt/cost-chain binding, current listed host human manager and stored operator/purpose/source checks before cached acknowledgement. PR7 final CI40716190256 passed32 ordinary and five actual PostgreSQL17 groups. PR8 final CI40721523227 passed32 ordinary and six actual PostgreSQL17 groups including authenticated database-role/RLS boundaries, logs inspected. Accepted PR2 persists own-DB budgets/audit/outbox and one-shot consumption; PR3 bounds receipt verification; PR4 authorizes cached commands under lock; PR5 verifies actual network-session races/lost acknowledgements. PR9 candidate adds explicit balanced allocation corrections with exact immutable original/predecessor editions,64-edition fail-closed cap, current authority/source checks before cache and atomic own-DB history/audit/outbox without changing budget capacity or charges. All42 local tests/typecheck/build/registry and strict PostgreSQL integration compile pass; ten new actual restricted-migration correction groups. Initial source34d66eb66d762feacdca12279fdfcf3c270c0d7d CI40740255082 passed35 ordinary and six existing PostgreSQL17 regressions, logs inspected. All ten correction groups also pass installed compiled public exports with store JS byte-match. Expanded source6027cbbe4f4bc11678e8fcfdd61f38d8df18f23c CI40740920672 check123001970855/postgres123001972912 confirms42 ordinary and SEVEN actual PostgreSQL17 groups including new observed public correction contention/lost winning COMMIT acknowledgement/fresh-pool historical replay; logs inspected. Final-head CI/expected-head merge remains required after evidence update. Production identity/receipt/contributor entitlement/accounting/private controls/driver/TLS/failover/throughput/crash/live qualification remain pending. No payment/export/effect authority/deletion or new authenticated route. Partial PR10 private accounting statement: one authorized project-locked own-DB observation binds original charge, observed current budget/original allocation/latest correction editions and effective balanced cells. Five new restricted-migration groups and all47 local tests/typecheck/build/registry/strict integration compile pass; all five installed compiled public-export groups pass/store JS byte-match. Initial sourced224fcfa0bcd08d234895833f970df3055244789 CI40748816709 passed45 ordinary and seven EXISTING PostgreSQL17 regressions, logs inspected. No new network-session qualification or accounting effect. Final-head CI/expected-head merge required. Licensing/products/obligations/accounting export/provider qualification/authenticated host/current Identity/driver/TLS/failover/throughput/crash/live remain pending; no payment/send/publication."
     },
     {
       "id": "RCO-006",
