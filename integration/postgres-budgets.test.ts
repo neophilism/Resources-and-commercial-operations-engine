@@ -491,17 +491,15 @@ test(
       foreign.id,
       "Identical keys in distinct scopes exercise RLS rather than different IDs",
     );
-    for (const db of [
-      admin,
-      {
-        ...admin,
-        transaction: <T>(fn: Parameters<Database["transaction"]>[0]) =>
-          admin.transaction(async (q) => {
-            await q.query("SET LOCAL ROLE evidence_runtime");
-            return fn(q) as Promise<T>;
-          }),
-      } as Database,
-    ]) {
+    const lowered: Database = {
+      ...admin,
+      transaction: (fn) =>
+        admin.transaction(async (q) => {
+          await q.query("SET LOCAL ROLE evidence_runtime");
+          return fn(q);
+        }),
+    };
+    for (const db of [admin, lowered]) {
       const unsafe = new BudgetStore(db, f.policy, f.verifier);
       await assert.rejects(unsafe.load(f.owner, "budget"), {
         code: "unsafe_database_role",

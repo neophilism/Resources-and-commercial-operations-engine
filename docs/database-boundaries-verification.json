@@ -1,0 +1,19 @@
+{
+  "localOrdinaryTests": 32,
+  "strictIntegrationCompile": "passed",
+  "initialCi": {
+    "source": "d99892403a51209be7fe5c05206b66c322c5c654",
+    "run": 40721197505,
+    "ordinaryJob": 122932248796,
+    "postgresJob": 122932248886,
+    "postgresGroups": 6,
+    "newGroups": 1,
+    "logsInspected": true
+  },
+  "sourceSha256": "3947edb2ca25b8c5f73cfb34da3ce45067ddfa8bfb84febc041edbe0b6770b05",
+  "remaining": [
+    "Final-head all-job CI/expected-head merge",
+    "No local PostgreSQL/Docker/new installed runtime claim",
+    "Production host identity/session/scope/receipt/driver/TLS/failover/throughput/live qualification"
+  ]
+}
