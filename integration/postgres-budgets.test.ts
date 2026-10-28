@@ -448,3 +448,107 @@ test(
     }
   },
 );
+
+test(
+  "PostgreSQL rejects privileged/lowered logins and confines real budget/allocation rows to the selected scope",
+  { timeout: 20000 },
+  async (t) => {
+    const f = await fixture(t, "network-isolation"),
+      other = await fixture(t, "network-isolation-other");
+    async function allocate(x: typeof f) {
+      await x.committed();
+      const receipt = {
+        tenantId: x.owner.tenantId,
+        projectId: x.owner.projectId,
+        kind: "fixture-receipt",
+        id: "one",
+        revision: 1,
+      };
+      await x.sa.execute(
+        x.worker,
+        "budget",
+        3,
+        { type: "settle", reservationId: "one", actualUnits: 45, receipt },
+        "settle",
+      );
+      return x.sa.allocate(
+        x.owner,
+        {
+          budgetId: "budget",
+          expectedBudgetRevision: 4,
+          reservationId: "one",
+          lines: [
+            { projectId: "label", contributorId: "contributor", units: 45 },
+          ],
+        },
+        "allocate",
+      );
+    }
+    const allocated = await allocate(f),
+      foreign = await allocate(other);
+    assert.equal(
+      allocated.id,
+      foreign.id,
+      "Identical keys in distinct scopes exercise RLS rather than different IDs",
+    );
+    for (const db of [
+      admin,
+      {
+        ...admin,
+        transaction: <T>(fn: Parameters<Database["transaction"]>[0]) =>
+          admin.transaction(async (q) => {
+            await q.query("SET LOCAL ROLE evidence_runtime");
+            return fn(q) as Promise<T>;
+          }),
+      } as Database,
+    ]) {
+      const unsafe = new BudgetStore(db, f.policy, f.verifier);
+      await assert.rejects(unsafe.load(f.owner, "budget"), {
+        code: "unsafe_database_role",
+      });
+      await assert.rejects(unsafe.loadAllocation(f.owner, "budget", "one"), {
+        code: "unsafe_database_role",
+      });
+    }
+    for (const sql of [
+      "CREATE TABLE public.resource_escape(value integer)",
+      "SET LOCAL ROLE postgres",
+    ])
+      await assert.rejects(
+        f.a.transaction((q) => q.query(sql)),
+        { code: "42501" },
+      );
+    // Authenticated LOGIN is NOINHERIT. Explicitly lower to the runtime role before RLS probes.
+    const unscoped = await f.a.transaction(async (q) => {
+      await q.query("SET LOCAL ROLE evidence_runtime");
+      await q.query(
+        "SELECT set_config('evidence.tenant_id','',true),set_config('evidence.project_id','',true)",
+      );
+      return q.query(
+        "SELECT kind,id FROM public.evidence_record WHERE kind IN ('budget','cost-allocation')",
+      );
+    });
+    assert.equal(unscoped.rows.length, 0);
+    for (const x of [f, other])
+      await scoped(x.a, x.owner, async (tx) => {
+        const budgets = await tx.list<BudgetState>("budget"),
+          allocations = await tx.list<{ projectId: string }>("cost-allocation");
+        assert.equal(budgets.length, 1);
+        assert.equal(budgets[0]!.value.projectId, x.owner.projectId);
+        assert.equal(allocations.length, 1);
+        assert.equal(allocations[0]!.value.projectId, x.owner.projectId);
+        assert.equal(allocations[0]!.id, allocated.id);
+        assert.ok(verifyAudit(await tx.audits()));
+      });
+    for (const context of [
+      { ...f.owner, tenantId: "absent-tenant" },
+      { ...f.owner, projectId: "absent-project" },
+    ])
+      await scoped(f.b, context, async (tx) => {
+        assert.equal((await tx.list("budget")).length, 0);
+        assert.equal((await tx.list("cost-allocation")).length, 0);
+        assert.equal(await tx.get("cost-allocation", allocated.id), null);
+      });
+    // These selected-scope SQL settings are trusted-host inputs, not end-user authentication.
+  },
+);
