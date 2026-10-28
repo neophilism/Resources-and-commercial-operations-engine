@@ -6,6 +6,8 @@ import {
   digest,
   invariant,
   newId,
+  nonempty,
+  validTime,
   requireScope,
   validateRef,
 } from "./contracts.ts";
@@ -20,6 +22,8 @@ import {
   settle,
   recordOverage,
   expireReservations,
+  allocateCost,
+  verifyCostLedger,
 } from "./index.ts";
 import type { BudgetState } from "./index.ts";
 export type BudgetCommand =
@@ -64,6 +68,97 @@ export type EffectPermit = Scope & {
   actorId: string;
   revision: number;
 };
+export type AllocationLine = Readonly<{
+  projectId: string;
+  contributorId: string;
+  units: number;
+}>;
+export type AllocationInput = Readonly<{
+  budgetId: string;
+  expectedBudgetRevision: number;
+  reservationId: string;
+  lines: readonly AllocationLine[];
+}>;
+export type AllocationSource = Scope &
+  Readonly<{
+    budget: Ref;
+    budgetId: string;
+    reservationId: string;
+    purpose: string;
+    effectKey: string;
+    unit: string;
+    totalUnits: number;
+    receipt: Ref;
+    costSequence: number;
+    costHash: string;
+  }>;
+export type CostAllocation = Scope &
+  Readonly<{
+    source: AllocationSource;
+    lines: readonly AllocationLine[];
+    recordedBy: string;
+    recordedAt: string;
+  }>;
+export type AllocationSnapshot = Readonly<{
+  id: string;
+  revision: number;
+  value: CostAllocation;
+}>;
+const ALLOCATION = "cost-allocation";
+const allocationId = (budgetId: string, reservationId: string) =>
+  digest({ kind: ALLOCATION, budgetId, reservationId });
+function allocationLines(
+  lines: readonly AllocationLine[],
+  total: number,
+): AllocationLine[] {
+  invariant(
+    Array.isArray(lines) &&
+      lines.length > 0 &&
+      lines.length <= 256 &&
+      Buffer.byteLength(canonical(lines)) <= 65536,
+    "invalid_allocation",
+    "Bounded allocation lines required",
+  );
+  const seen = new Set<string>(),
+    projects = new Map<string, number>();
+  for (const line of lines) {
+    invariant(
+      line &&
+        Object.keys(line).length === 3 &&
+        ["projectId", "contributorId", "units"].every((k) =>
+          Object.hasOwn(line, k),
+        ),
+      "invalid_allocation",
+      "Exact allocation fields required",
+    );
+    nonempty(line.projectId, "Allocation project", 128);
+    nonempty(line.contributorId, "Contributor", 128);
+    invariant(
+      Number.isSafeInteger(line.units) && line.units >= 0,
+      "invalid_units",
+      "Safe nonnegative units required",
+    );
+    const key = canonical([line.projectId, line.contributorId]);
+    invariant(
+      !seen.has(key),
+      "duplicate_allocation",
+      "Project/contributor pair duplicated",
+    );
+    seen.add(key);
+    const next = (projects.get(line.projectId) ?? 0) + line.units;
+    invariant(
+      Number.isSafeInteger(next),
+      "overflow",
+      "Allocation exceeds safe units",
+    );
+    projects.set(line.projectId, next);
+  }
+  allocateCost(
+    total,
+    [...projects].map(([projectId, units]) => ({ projectId, units })),
+  );
+  return structuredClone([...lines]);
+}
 const json = (value: unknown): Json => JSON.parse(canonical(value)) as Json;
 const idKey = (id: string) => digest({ kind: "budget", id });
 export class BudgetStore {
@@ -372,6 +467,280 @@ export class BudgetStore {
         },
       );
     }) as Promise<unknown> as Promise<BudgetSnapshot>;
+  }
+  #allocationSource(
+    c: Context,
+    snapshot: BudgetSnapshot,
+    budgetId: string,
+    reservationId: string,
+  ): AllocationSource {
+    const s = snapshot.state,
+      r = s.reservations.find((r) => r.id === reservationId);
+    invariant(
+      s.schemaVersion === 1 && s.id === budgetId && verifyCostLedger(s),
+      "invalid_cost_ledger",
+      "Exact intact budget ledger required",
+    );
+    invariant(
+      r &&
+        r.status === "settled" &&
+        r.actualUnits !== null &&
+        Number.isSafeInteger(r.actualUnits) &&
+        r.actualUnits >= 0 &&
+        r.receipt,
+      "cost_unsettled",
+      "Only a recorded settled charge can be allocated",
+    );
+    invariant(
+      r.purpose === c.purpose,
+      "purpose_denied",
+      "Cost purpose differs from authenticated purpose",
+    );
+    nonempty(s.unit, "Unit", 64);
+    nonempty(r.effectKey, "Effect", 200);
+    validateRef(r.receipt);
+    requireScope(c, r.receipt);
+    const entries = s.entries.filter(
+      (e) =>
+        e.id === reservationId &&
+        ["budget.settled", "budget.overage"].includes(e.type),
+    );
+    invariant(
+      entries.length === 1 && entries[0]!.units === r.actualUnits,
+      "invalid_cost_ledger",
+      "One exact recorded charge required",
+    );
+    return {
+      tenantId: c.tenantId,
+      projectId: c.projectId,
+      budget: {
+        tenantId: c.tenantId,
+        projectId: c.projectId,
+        kind: "budget",
+        id: idKey(budgetId),
+        revision: snapshot.revision,
+      },
+      budgetId,
+      reservationId,
+      purpose: r.purpose,
+      effectKey: r.effectKey,
+      unit: s.unit,
+      totalUnits: r.actualUnits,
+      receipt: {
+        tenantId: r.receipt.tenantId,
+        projectId: r.receipt.projectId,
+        kind: r.receipt.kind,
+        id: r.receipt.id,
+        revision: r.receipt.revision,
+      },
+      costSequence: entries[0]!.sequence,
+      costHash: entries[0]!.hash,
+    };
+  }
+  async #checkAllocation(
+    tx: UnitOfWork,
+    c: Context,
+    row: AllocationSnapshot,
+    source: AllocationSource,
+  ): Promise<AllocationSnapshot> {
+    invariant(
+      row.value &&
+        Object.keys(row.value).length === 6 &&
+        [
+          "tenantId",
+          "projectId",
+          "source",
+          "lines",
+          "recordedBy",
+          "recordedAt",
+        ].every((k) => Object.hasOwn(row.value, k)),
+      "invalid_allocation",
+      "Exact stored allocation required",
+    );
+    nonempty(row.value.recordedBy, "Recorded actor", 128);
+    validTime(row.value.recordedAt);
+    requireScope(c, row.value);
+    requireScope(c, row.value.source);
+    requireScope(c, row.value.source.budget);
+    invariant(
+      row.revision === 1 &&
+        row.id === allocationId(source.budgetId, source.reservationId),
+      "invalid_allocation",
+      "Immutable allocation edition required",
+    );
+    const { budget, ...current } = source,
+      { budget: recorded, ...stored } = row.value.source;
+    invariant(
+      digest(current) === digest(stored) &&
+        recorded.kind === budget.kind &&
+        recorded.id === budget.id &&
+        Number.isSafeInteger(recorded.revision) &&
+        recorded.revision > 0 &&
+        recorded.revision <= budget.revision,
+      "allocation_source_changed",
+      "Recorded charge binding changed",
+    );
+    for (const ref of [row.value.source.budget, row.value.source.receipt])
+      invariant(
+        Object.keys(ref).length === 5 &&
+          ["tenantId", "projectId", "kind", "id", "revision"].every((k) =>
+            Object.hasOwn(ref, k),
+          ),
+        "invalid_allocation",
+        "Exact stored reference required",
+      );
+    const historical = await tx.get<BudgetState>(
+      "budget",
+      budget.id,
+      recorded.revision,
+    );
+    invariant(
+      historical,
+      "allocation_source_changed",
+      "Recorded budget edition unavailable",
+    );
+    const original = this.#allocationSource(
+      c,
+      { revision: historical.revision, state: historical.value },
+      source.budgetId,
+      source.reservationId,
+    );
+    invariant(
+      digest(original) === digest(row.value.source),
+      "allocation_source_changed",
+      "Exact original charge edition required",
+    );
+    allocationLines(row.value.lines, source.totalUnits);
+    return row;
+  }
+  /** Immutable bookkeeping only. Does not change balances, grant capacity, pay or re-attest provider receipts. */
+  async allocate(
+    context: Context,
+    supplied: AllocationInput,
+    commandId: string,
+  ): Promise<AllocationSnapshot> {
+    const c = structuredClone(context),
+      input = structuredClone(supplied);
+    this.#manager(c);
+    nonempty(commandId, "Command", 128);
+    invariant(
+      input &&
+        Object.keys(input).length === 4 &&
+        ["budgetId", "expectedBudgetRevision", "reservationId", "lines"].every(
+          (k) => Object.hasOwn(input, k),
+        ),
+      "invalid_allocation",
+      "Exact allocation input required",
+    );
+    nonempty(input.budgetId, "Budget", 128);
+    nonempty(input.reservationId, "Reservation", 128);
+    invariant(
+      Number.isSafeInteger(input.expectedBudgetRevision) &&
+        input.expectedBudgetRevision > 0,
+      "invalid_revision",
+      "Exact budget revision required",
+    );
+    // Validate bounded lines before SQL without trusting a caller-supplied total.
+    invariant(
+      Array.isArray(input.lines) &&
+        input.lines.length > 0 &&
+        input.lines.length <= 256 &&
+        Buffer.byteLength(canonical(input.lines)) <= 65536,
+      "invalid_allocation",
+      "Bounded allocation lines required",
+    );
+    return scoped(this.#db, c, async (tx) => {
+      await tx.audit("cost.allocation.checked", {
+        budgetId: input.budgetId,
+        reservationId: input.reservationId,
+      });
+      const snapshot = await this.#get(tx, c, input.budgetId),
+        source = this.#allocationSource(
+          c,
+          snapshot,
+          input.budgetId,
+          input.reservationId,
+        ),
+        lines = allocationLines(input.lines, source.totalUnits),
+        id = allocationId(input.budgetId, input.reservationId);
+      const result = (await tx.idempotent(
+        commandId,
+        json({
+          operation: "allocate-cost",
+          input,
+          actorKind: c.actor.kind,
+          purpose: c.purpose,
+        }),
+        async () => {
+          invariant(
+            snapshot.revision === input.expectedBudgetRevision,
+            "revision_conflict",
+            "Budget revision changed",
+          );
+          invariant(
+            !(await tx.get(ALLOCATION, id)),
+            "already_allocated",
+            "Charge already has an immutable allocation",
+          );
+          const value: CostAllocation = {
+            tenantId: c.tenantId,
+            projectId: c.projectId,
+            source,
+            lines,
+            recordedBy: c.actor.id,
+            recordedAt: c.now,
+          };
+          const saved = await tx.put(ALLOCATION, id, 0, json(value));
+          await tx.audit("cost.allocated", {
+            id,
+            budgetId: input.budgetId,
+            reservationId: input.reservationId,
+            totalUnits: source.totalUnits,
+            unit: source.unit,
+          });
+          await tx.enqueue(
+            "cost.allocated",
+            {
+              id,
+              revision: saved.revision,
+              budgetId: input.budgetId,
+              reservationId: input.reservationId,
+            },
+            id,
+          );
+          return json({ id, revision: saved.revision, value });
+        },
+      )) as unknown as AllocationSnapshot;
+      return this.#checkAllocation(tx, c, result, source);
+    });
+  }
+  async loadAllocation(
+    context: Context,
+    budgetId: string,
+    reservationId: string,
+  ): Promise<AllocationSnapshot | null> {
+    const c = structuredClone(context);
+    this.#manager(c);
+    nonempty(budgetId, "Budget", 128);
+    nonempty(reservationId, "Reservation", 128);
+    return scoped(this.#db, c, async (tx) => {
+      await tx.audit("cost.allocation.read.checked", {
+        budgetId,
+        reservationId,
+      });
+      const snapshot = await this.#get(tx, c, budgetId),
+        source = this.#allocationSource(c, snapshot, budgetId, reservationId),
+        id = allocationId(budgetId, reservationId);
+      const row = await tx.get<CostAllocation>(ALLOCATION, id);
+      return row
+        ? this.#checkAllocation(
+            tx,
+            c,
+            { id, revision: row.revision, value: row.value },
+            source,
+          )
+        : null;
+    });
   }
   /** Consume once before any external attempt. Lost acknowledgements require reconciliation. */
   async consumeEffect(

@@ -26,7 +26,8 @@
     "check": "npm run typecheck && npm test && npm run build && node scripts/validate-pr-registry.mjs",
     "build": "tsc -p tsconfig.build.json",
     "prepare": "npm run build",
-    "test:postgres": "node --test integration/postgres-budgets.test.ts"
+    "test:postgres": "npm run typecheck:postgres && node --test integration/postgres-budgets.test.ts",
+    "typecheck:postgres": "tsc --noEmit -p tsconfig.postgres.json"
   },
   "devDependencies": {
     "@types/node": "26.6.5",

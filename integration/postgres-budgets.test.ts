@@ -321,3 +321,130 @@ test(
     }
   },
 );
+
+test(
+  "independent PostgreSQL allocation waits for the winning public transaction and retains one immutable record/history/outbox",
+  { timeout: 20000 },
+  async (t) => {
+    const f = await fixture(t, "network-allocation");
+    await f.committed();
+    const receipt = {
+      tenantId: f.owner.tenantId,
+      projectId: f.owner.projectId,
+      kind: "fictional-charge-receipt",
+      id: "one",
+      revision: 1,
+    };
+    const settled = await f.sa.execute(
+      f.worker,
+      "budget",
+      3,
+      { type: "settle", reservationId: "one", actualUnits: 45, receipt },
+      "settle",
+    );
+    const input = {
+      budgetId: "budget",
+      expectedBudgetRevision: settled.revision,
+      reservationId: "one",
+      lines: [
+        { projectId: "label-a", contributorId: "contributor-a", units: 45 },
+      ],
+    };
+    const entered = gate(),
+      release = gate();
+    const db: Database = {
+      ...f.a,
+      transaction: (fn) =>
+        f.a.transaction(async (q) => {
+          const value = await fn(q);
+          entered.resolve();
+          await release.promise;
+          return value;
+        }),
+    };
+    const store = new BudgetStore(db, f.policy, f.verifier);
+    const first = store.allocate(f.owner, input, "first");
+    const firstResult = first.then(
+      (value) => ({ value }),
+      (error) => ({ error }),
+    );
+    let second: ReturnType<BudgetStore["allocate"]> | undefined;
+    try {
+      await Promise.race([
+        entered.promise,
+        first.then(() => {
+          throw Error("Winning transaction did not hold");
+        }),
+      ]);
+      second = f.sb.allocate(
+        f.owner,
+        {
+          ...input,
+          lines: [
+            { projectId: "label-b", contributorId: "contributor-b", units: 45 },
+          ],
+        },
+        "second",
+      );
+      const secondResult = second.then(
+        (value) => ({ value }),
+        (error) => ({ error }),
+      );
+      let blocked = false;
+      const until = Date.now() + 3000;
+      while (Date.now() < until) {
+        const state = await admin.transaction((q) =>
+          q.query<{ blocked: boolean }>(
+            "SELECT EXISTS(SELECT FROM pg_stat_activity WHERE application_name=$1 AND wait_event_type='Lock' AND cardinality(pg_blocking_pids(pid))>0) AS blocked",
+            ["network-allocation-b"],
+          ),
+        );
+        if (state.rows[0]!.blocked) {
+          blocked = true;
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      assert.equal(
+        blocked,
+        true,
+        "Allocation contender must actually block before first COMMIT",
+      );
+      release.resolve();
+      const winner = await firstResult;
+      assert.ok("value" in winner);
+      const denied = await secondResult;
+      assert.ok("error" in denied);
+      assert.equal(denied.error.code, "already_allocated");
+      const fresh = new BudgetStore(f.connect("fresh"), f.policy, f.verifier);
+      assert.deepEqual(
+        await fresh.loadAllocation(f.owner, "budget", "one"),
+        winner.value,
+      );
+      assert.deepEqual(
+        await fresh.allocate(f.owner, input, "first"),
+        winner.value,
+      );
+      assert.deepEqual(await fresh.load(f.owner, "budget"), settled);
+      await scoped(f.b, f.owner, async (tx) => {
+        assert.equal((await tx.list("cost-allocation")).length, 1);
+        assert.equal(
+          (await tx.audits()).filter((a) => a.type === "cost.allocated").length,
+          1,
+        );
+        assert.ok(verifyAudit(await tx.audits()));
+      });
+      const count = await admin.transaction((q) =>
+        q.query<{ count: number }>(
+          "SELECT count(*)::int AS count FROM public.evidence_outbox WHERE tenant_id=$1 AND project_id=$2 AND topic='cost.allocated'",
+          [f.owner.tenantId, f.owner.projectId],
+        ),
+      );
+      assert.equal(count.rows[0]!.count, 1);
+    } finally {
+      release.resolve();
+      await first.catch(() => {});
+      await second?.catch(() => {});
+    }
+  },
+);
