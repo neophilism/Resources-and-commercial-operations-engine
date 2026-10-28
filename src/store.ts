@@ -477,7 +477,7 @@ export class BudgetStore {
     const s = snapshot.state,
       r = s.reservations.find((r) => r.id === reservationId);
     invariant(
-      s.id === budgetId && verifyCostLedger(s),
+      s.schemaVersion === 1 && s.id === budgetId && verifyCostLedger(s),
       "invalid_cost_ledger",
       "Exact intact budget ledger required",
     );
@@ -496,6 +496,8 @@ export class BudgetStore {
       "purpose_denied",
       "Cost purpose differs from authenticated purpose",
     );
+    nonempty(s.unit, "Unit", 64);
+    nonempty(r.effectKey, "Effect", 200);
     validateRef(r.receipt);
     requireScope(c, r.receipt);
     const entries = s.entries.filter(
