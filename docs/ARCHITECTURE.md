@@ -9,3 +9,5 @@ The library uses an explicit authenticated operator allowlist and scope/purpose 
 Command replays check current stored budget membership, exact reservation principal/purpose and any required owner role before returning cached historical acknowledgements. The original command fingerprint is retained; cached data is not an execution permit or fresh provider attestation. Trusted host identity context remains required.
 
 Disposable PostgreSQL17 CI tests qualify specific reservation, consumption, lost-acknowledgement and observed-lock cached-authorization scenarios. These are separate from PGlite evidence and do not qualify production identity/receipt services, TLS/failover or deployment. See POSTGRES_TESTS.md.
+
+Immutable settled-cost allocation now records exact balanced project/contributor cells with historical source edition/receipt/cost-chain links and atomic audit/outbox in the Resources-owned DB. It changes no budget balances or execution authority and does not pay/export or independently re-attest receipts. Initial tested checkpoint remains partial pending expanded tests/installed/current-head CI. See ALLOCATIONS.md.

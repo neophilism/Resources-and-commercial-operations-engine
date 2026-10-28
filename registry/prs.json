@@ -4,7 +4,7 @@
   "roadmapVersion": 1,
   "planVerified": true,
   "plannedPrCount": 6,
-  "observedAt": "2026-10-27T15:53:54Z",
+  "observedAt": "2026-10-28T15:15:48Z",
   "units": [
     {
       "id": "RCO-001",
@@ -62,7 +62,7 @@
         "Project and contributor cost allocation"
       ],
       "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
-      "implementationStatus": "Partial: PR1 supplies exact balanced project cost allocation; durable contributor allocation/accounting integration and deployment acceptance remain pending."
+      "implementationStatus": "Partial: PR1 supplies exact balanced project cost allocation; durable contributor allocation/accounting integration and deployment acceptance remain pending. Partial immutable settled-cost allocation checkpoint: exact budget/receipt/charge-chain source, balanced bounded project/contributor labels, one record per reservation, current stored operator/listed human manager checks before cache, original source-edition validation and atomic own-DB audit/outbox. Initial four restricted-migration groups pass; historical guard tightening/full tests, installed exports, expanded tests and final-head CI remain required. No funds, permits, external receipt re-attestation, corrections or payments."
     },
     {
       "id": "RCO-004",
@@ -101,7 +101,7 @@
         "Durable storage and visual operational controls"
       ],
       "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
-      "implementationStatus": "Partial: merged PR2 provides engine-owned durable budget commands, immutable revisions, audit/outbox, bounded receipt callbacks and one-shot consumption. PR3 adds monotonic callback admission/result gates and signal cleanup. PR4 checks stored current budget membership, full reservation principal/purpose and required overage role under the project lock before cached responses, preserving legacy fingerprints. Twenty-one local tests/typecheck/build/registry and fifteen installed public-export migration groups pass; final-head CI is required. Host identity/receipt services, authenticated controls, independent network-session and deployment qualification remain pending. PR5 verifies four disposable PostgreSQL17 independent-session reservation/consumption/lost-acknowledgement and observed-lock authorization scenarios in CI40535308201. All22 local tests/typecheck/build/registry pass; final-head CI remains required. Broader production/network/service qualification remains pending."
+      "implementationStatus": "Partial: merged PR2 provides engine-owned durable budget commands, immutable revisions, audit/outbox, bounded receipt callbacks and one-shot consumption. PR3 adds monotonic callback admission/result gates and signal cleanup. PR4 checks stored current budget membership, full reservation principal/purpose and required overage role under the project lock before cached responses, preserving legacy fingerprints. Twenty-one local tests/typecheck/build/registry and fifteen installed public-export migration groups pass; final-head CI is required. Host identity/receipt services, authenticated controls, independent network-session and deployment qualification remain pending. PR5 verifies four disposable PostgreSQL17 independent-session reservation/consumption/lost-acknowledgement and observed-lock authorization scenarios in CI40535308201. All22 local tests/typecheck/build/registry pass; final-head CI remains required. Broader production/network/service qualification remains pending. Partial immutable settled-cost allocation checkpoint: exact budget/receipt/charge-chain source, balanced bounded project/contributor labels, one record per reservation, current stored operator/listed human manager checks before cache, original source-edition validation and atomic own-DB audit/outbox. Initial four restricted-migration groups pass; historical guard tightening/full tests, installed exports, expanded tests and final-head CI remain required. No funds, permits, external receipt re-attestation, corrections or payments."
     },
     {
       "id": "RCO-006",
