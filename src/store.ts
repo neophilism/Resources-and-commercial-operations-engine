@@ -104,6 +104,31 @@ export type AllocationSnapshot = Readonly<{
   revision: number;
   value: CostAllocation;
 }>;
+export type AllocationCorrectionInput = Readonly<{
+  budgetId: string;
+  reservationId: string;
+  expectedCorrectionRevision: number;
+  lines: readonly AllocationLine[];
+  reason: string;
+}>;
+export type AllocationCorrection = Scope &
+  Readonly<{
+    allocation: Ref;
+    previous: Ref | null;
+    lines: readonly AllocationLine[];
+    reason: string;
+    recordedBy: string;
+    recordedAt: string;
+  }>;
+export type AllocationCorrectionSnapshot = Readonly<{
+  id: string;
+  revision: number;
+  value: AllocationCorrection;
+}>;
+const CORRECTION = "cost-allocation-correction";
+const MAX_CORRECTIONS = 64;
+const correctionId = (id: string) =>
+  digest({ kind: CORRECTION, allocationId: id });
 const ALLOCATION = "cost-allocation";
 const allocationId = (budgetId: string, reservationId: string) =>
   digest({ kind: ALLOCATION, budgetId, reservationId });
@@ -738,6 +763,261 @@ export class BudgetStore {
             c,
             { id, revision: row.revision, value: row.value },
             source,
+          )
+        : null;
+    });
+  }
+  async #originalAllocation(
+    tx: UnitOfWork,
+    c: Context,
+    budgetId: string,
+    reservationId: string,
+  ): Promise<AllocationSnapshot> {
+    const snapshot = await this.#get(tx, c, budgetId),
+      source = this.#allocationSource(c, snapshot, budgetId, reservationId),
+      id = allocationId(budgetId, reservationId),
+      row = await tx.get<CostAllocation>(ALLOCATION, id);
+    invariant(row, "allocation_required", "Original allocation required");
+    return this.#checkAllocation(
+      tx,
+      c,
+      { id, revision: row.revision, value: row.value },
+      source,
+    );
+  }
+  #allocationRef(c: Context, kind: string, id: string, revision: number): Ref {
+    return { tenantId: c.tenantId, projectId: c.projectId, kind, id, revision };
+  }
+  async #checkCorrection(
+    tx: UnitOfWork,
+    c: Context,
+    row: AllocationCorrectionSnapshot,
+    original: AllocationSnapshot,
+  ): Promise<AllocationCorrectionSnapshot> {
+    invariant(
+      row.id === correctionId(original.id) &&
+        Number.isSafeInteger(row.revision) &&
+        row.revision > 0 &&
+        row.revision <= MAX_CORRECTIONS,
+      "invalid_correction",
+      "Bounded correction edition required",
+    );
+    // Follow every exact prior edition, never infer a lineage from a latest-only snapshot.
+    let expectedLines = original.value.lines;
+    for (let revision = 1; revision <= row.revision; revision++) {
+      const stored = await tx.get<AllocationCorrection>(
+        CORRECTION,
+        row.id,
+        revision,
+      );
+      invariant(
+        stored && stored.revision === revision,
+        "invalid_correction",
+        "Correction history unavailable",
+      );
+      const value = stored.value;
+      invariant(
+        value &&
+          Object.keys(value).length === 8 &&
+          [
+            "tenantId",
+            "projectId",
+            "allocation",
+            "previous",
+            "lines",
+            "reason",
+            "recordedBy",
+            "recordedAt",
+          ].every((k) => Object.hasOwn(value, k)),
+        "invalid_correction",
+        "Exact correction fields required",
+      );
+      requireScope(c, value);
+      const root = this.#allocationRef(c, ALLOCATION, original.id, 1),
+        previous =
+          revision === 1
+            ? null
+            : this.#allocationRef(c, CORRECTION, row.id, revision - 1);
+      invariant(
+        digest(value.allocation) === digest(root) &&
+          digest(value.previous) === digest(previous),
+        "invalid_correction",
+        "Exact original and predecessor editions required",
+      );
+      nonempty(value.reason, "Correction reason", 1000);
+      nonempty(value.recordedBy, "Recorded actor", 128);
+      validTime(value.recordedAt);
+      allocationLines(value.lines, original.value.source.totalUnits);
+      invariant(
+        digest(value.lines) !== digest(expectedLines),
+        "unchanged_allocation",
+        "Correction must change allocation lines",
+      );
+      expectedLines = value.lines;
+      if (revision === row.revision)
+        invariant(
+          digest(value) === digest(row.value),
+          "invalid_correction",
+          "Exact stored correction required",
+        );
+    }
+    return row;
+  }
+  /** Explicit private bookkeeping correction. Original allocation and every prior edition remain immutable. */
+  async correctAllocation(
+    context: Context,
+    supplied: AllocationCorrectionInput,
+    commandId: string,
+  ): Promise<AllocationCorrectionSnapshot> {
+    const c = structuredClone(context),
+      input = structuredClone(supplied);
+    this.#manager(c);
+    nonempty(commandId, "Command", 128);
+    invariant(
+      input &&
+        Object.keys(input).length === 5 &&
+        [
+          "budgetId",
+          "reservationId",
+          "expectedCorrectionRevision",
+          "lines",
+          "reason",
+        ].every((k) => Object.hasOwn(input, k)),
+      "invalid_correction",
+      "Exact correction input required",
+    );
+    nonempty(input.budgetId, "Budget", 128);
+    nonempty(input.reservationId, "Reservation", 128);
+    nonempty(input.reason, "Correction reason", 1000);
+    invariant(
+      Number.isSafeInteger(input.expectedCorrectionRevision) &&
+        input.expectedCorrectionRevision >= 0 &&
+        input.expectedCorrectionRevision < MAX_CORRECTIONS,
+      "invalid_revision",
+      "Correction revision must be0-63",
+    );
+    invariant(
+      Array.isArray(input.lines) &&
+        input.lines.length > 0 &&
+        input.lines.length <= 256 &&
+        Buffer.byteLength(canonical(input.lines)) <= 65536,
+      "invalid_allocation",
+      "Bounded allocation lines required",
+    );
+    return scoped(this.#db, c, async (tx) => {
+      await tx.audit("cost.correction.checked", {
+        budgetId: input.budgetId,
+        reservationId: input.reservationId,
+      });
+      // Current operator, purpose and original/current charge editions precede cached acknowledgements.
+      const original = await this.#originalAllocation(
+          tx,
+          c,
+          input.budgetId,
+          input.reservationId,
+        ),
+        lines = allocationLines(input.lines, original.value.source.totalUnits),
+        id = correctionId(original.id);
+      const result = (await tx.idempotent(
+        commandId,
+        json({
+          operation: "correct-cost-allocation",
+          input,
+          actorKind: c.actor.kind,
+          purpose: c.purpose,
+        }),
+        async () => {
+          const current = await tx.get<AllocationCorrection>(CORRECTION, id);
+          invariant(
+            (current?.revision ?? 0) === input.expectedCorrectionRevision,
+            "revision_conflict",
+            "Correction revision changed",
+          );
+          if (current)
+            await this.#checkCorrection(
+              tx,
+              c,
+              { id, revision: current.revision, value: current.value },
+              original,
+            );
+          invariant(
+            digest(lines) !==
+              digest(current?.value.lines ?? original.value.lines),
+            "unchanged_allocation",
+            "Correction must change allocation lines",
+          );
+          const value: AllocationCorrection = {
+            tenantId: c.tenantId,
+            projectId: c.projectId,
+            allocation: this.#allocationRef(c, ALLOCATION, original.id, 1),
+            previous: current
+              ? this.#allocationRef(c, CORRECTION, id, current.revision)
+              : null,
+            lines,
+            reason: input.reason,
+            recordedBy: c.actor.id,
+            recordedAt: c.now,
+          };
+          const saved = await tx.put(
+            CORRECTION,
+            id,
+            input.expectedCorrectionRevision,
+            json(value),
+          );
+          await tx.audit("cost.allocation.corrected", {
+            id,
+            revision: saved.revision,
+            allocationId: original.id,
+          });
+          await tx.enqueue(
+            "cost.allocation.corrected",
+            { id, revision: saved.revision, allocationId: original.id },
+            digest({ id, revision: saved.revision }),
+          );
+          return json({ id, revision: saved.revision, value });
+        },
+      )) as unknown as AllocationCorrectionSnapshot;
+      return this.#checkCorrection(tx, c, result, original);
+    });
+  }
+  /** Omit revision for latest correction; historical reads never claim to be current. Null means no recorded correction, not rollback proof. */
+  async loadAllocationCorrection(
+    context: Context,
+    budgetId: string,
+    reservationId: string,
+    revision?: number,
+  ): Promise<AllocationCorrectionSnapshot | null> {
+    const c = structuredClone(context);
+    this.#manager(c);
+    nonempty(budgetId, "Budget", 128);
+    nonempty(reservationId, "Reservation", 128);
+    invariant(
+      revision === undefined ||
+        (Number.isSafeInteger(revision) &&
+          revision > 0 &&
+          revision <= MAX_CORRECTIONS),
+      "invalid_revision",
+      "Bounded correction edition required",
+    );
+    return scoped(this.#db, c, async (tx) => {
+      await tx.audit("cost.correction.read.checked", {
+        budgetId,
+        reservationId,
+      });
+      const original = await this.#originalAllocation(
+          tx,
+          c,
+          budgetId,
+          reservationId,
+        ),
+        id = correctionId(original.id),
+        row = await tx.get<AllocationCorrection>(CORRECTION, id, revision);
+      return row
+        ? this.#checkCorrection(
+            tx,
+            c,
+            { id, revision: row.revision, value: row.value },
+            original,
           )
         : null;
     });

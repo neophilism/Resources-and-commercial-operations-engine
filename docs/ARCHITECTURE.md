@@ -17,3 +17,5 @@ Allocation acceptance checkpoint:32 ordinary local tests/typecheck/build/registr
 The database-boundary CI extension covers unsafe authenticated logins, denied schema/super-role escalation, and scoped/unscoped visibility of both budget and immutable allocation records with deliberately identical cross-scope keys. Runtime source remains unchanged. Actual CI and deployed authentication/driver qualification remain separate; see POSTGRES_TESTS.md.
 
 The new boundary case plus all five existing PostgreSQL17 regressions passed CI40721197505 on initial source, logs inspected. Local32 ordinary tests and strict integration compile pass. Final-head CI/merge remains separate after evidence update; no runtime or deployed identity/service change.
+
+Explicit private allocation corrections append immutable source/predecessor-bound editions without changing original allocations, charges or capacity. Historical acknowledgements are separate from current reads. Initial restricted-migration tests pass; broader qualification is pending. See ALLOCATION_CORRECTIONS.md.
