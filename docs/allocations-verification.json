@@ -1,0 +1,32 @@
+{
+  "localTests": 32,
+  "newRestrictedMigrationGroups": 10,
+  "installedCompiledPublicExportGroups": 10,
+  "installedCompiledJS": "byte-matched build",
+  "strictPostgresCompile": "passed locally; now required before CI network execution",
+  "initialExpandedCi": {
+    "source": "0510715ea606e5b2a98bbb2d2b927f19dacb2c2c",
+    "run": 40715390154,
+    "check": 122911536232,
+    "postgres": 122911536874,
+    "ordinary": 31,
+    "postgresGroups": 5,
+    "newNetworkGroups": 1,
+    "logsInspected": true
+  },
+  "scope": "Private immutable bookkeeping for an already recorded settled charge; no effect, capacity, payment, provider re-attestation or external identity fence",
+  "remaining": [
+    "Final-head all-job CI/expected-head merge",
+    "Current trusted host identity/roles/configuration and database/pool limits",
+    "Qualified provider receipt/contributor identity/entitlement/accounting interfaces",
+    "Explicit correction lineage and private controls/exports",
+    "Production TLS/failover/throughput/crash/live acceptance"
+  ],
+  "sourceSha256": {
+    "src/store.ts": "b3e766efeeeba670e7fee9f7f61bf202aba4f0f3c1cf3516320386c6f120e6e2",
+    "tests/allocation-fixture.ts": "4af26a3c57c4f2b9282983f922b2ba1672e8258386aea102e4d8b1343b31531b",
+    "tests/allocations.test.ts": "c10c0482e35924d586dbc691adfcfe738e085d5fab42380ea68afb31318a2057",
+    "integration/postgres-budgets.test.ts": "b943bb705bd76a81a2f1036a9d69c544115d21f9dc152de9790bccebcdde16ea",
+    "tsconfig.postgres.json": "c664a6454fd6929e1cd67d9f180ef74a0f21c73ba587602e03cccefca57b5496"
+  }
+}

@@ -452,3 +452,54 @@ test("exact historical source edition is loaded and phantom pre-settlement refer
     );
   }
 });
+
+test("explicit verified overage allocation uses the recorded excess charge and never restores exhausted budget capacity", async (t) => {
+  const f = await setup(t),
+    ready = await committed(f.store);
+  const overage = await f.store.execute(
+    owner,
+    "budget",
+    ready.revision,
+    {
+      type: "overage",
+      reservationId: "reservation",
+      actualUnits: 110,
+      receipt,
+      reason: "fictional provider excess",
+    },
+    "overage",
+  );
+  const row = await f.store.allocate(
+    owner,
+    {
+      budgetId: "budget",
+      expectedBudgetRevision: overage.revision,
+      reservationId: "reservation",
+      lines: [{ projectId: "p", contributorId: "c", units: 110 }],
+    },
+    "overage-allocation",
+  );
+  assert.equal(row.value.source.totalUnits, 110);
+  assert.equal(row.value.source.costHash, overage.state.entries.at(-1)!.hash);
+  assert.equal(overage.state.entries.at(-1)!.type, "budget.overage");
+  assert.deepEqual(await f.store.load(owner, "budget"), overage);
+  await assert.rejects(
+    f.store.execute(
+      owner,
+      "budget",
+      overage.revision,
+      {
+        type: "reserve",
+        input: {
+          id: "new",
+          units: 1,
+          purpose: owner.purpose,
+          expiresAt: "2026-01-01T00:02:00Z",
+          effectKey: "new",
+        },
+      },
+      "no-restored-capacity",
+    ),
+    { code: "budget_exhausted" },
+  );
+});
